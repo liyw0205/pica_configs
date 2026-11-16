@@ -6,12 +6,12 @@ class Komiic extends ComicSource {
     // 唯一标识符
     key = "Komiic"
 
-    version = "1.0.4"
+    version = "1.0.5"
 
     minAppVersion = "3.1.0"
 
     // 更新链接
-    url = "https://raw.githubusercontent.com/wgh136/pica_configs/master/komiic.js"
+    url = "https://raw.githubusercontent.com/liyw0205/pica_configs/master/komiic.js"
 
     get headers() {
         let token = this.loadData('token')
@@ -57,11 +57,11 @@ class Komiic extends ComicSource {
 
         function parseComic(comic) {
             let author = ''
-            if (comic.authors.length > 0) {
+            if (Array.isArray(comic.authors) && comic.authors.length > 0) {
                 author = comic.authors[0].name
             }
             let tags = []
-            comic.categories.forEach((c) => {
+            ;(comic.categories || []).forEach((c) => {
                 tags.push(c.name)
             })
 
@@ -84,7 +84,7 @@ class Komiic extends ComicSource {
             }
 
             let updateTime = new Date(comic.dateUpdated)
-            let description = getTimeDifference(updateTime)
+            let description = isNaN(updateTime.getTime()) ? "" : getTimeDifference(updateTime)
 
             return {
                 id: comic.id,
@@ -212,13 +212,13 @@ class Komiic extends ComicSource {
         load: async (keyword, options, page) => {
             let json = await this.queryJson({ "operationName": "searchComicAndAuthorQuery", "variables": { "keyword": keyword }, "query": "query searchComicAndAuthorQuery($keyword: String!) {\n  searchComicsAndAuthors(keyword: $keyword) {\n    comics {\n      id\n      title\n      status\n      year\n      imageUrl\n      authors {\n        id\n        name\n        __typename\n      }\n      categories {\n        id\n        name\n        __typename\n      }\n      dateUpdated\n      monthViews\n      views\n      favoriteCount\n      lastBookUpdate\n      lastChapterUpdate\n      __typename\n    }\n    authors {\n      id\n      name\n      chName\n      enName\n      wikiLink\n      comicCount\n      views\n      __typename\n    }\n    __typename\n  }\n}" })
 
-            function parseComic(comic) {
+            let parseComic = (comic) => {
                 let author = ''
-                if (comic.authors.length > 0) {
+                if (Array.isArray(comic.authors) && comic.authors.length > 0) {
                     author = comic.authors[0].name
                 }
                 let tags = []
-                comic.categories.forEach((c) => {
+                ;(comic.categories || []).forEach((c) => {
                     tags.push(c.name)
                 })
 
@@ -241,7 +241,7 @@ class Komiic extends ComicSource {
                 }
 
                 let updateTime = new Date(comic.dateUpdated)
-                let description = getTimeDifference(updateTime)
+                let description = isNaN(updateTime.getTime()) ? "" : getTimeDifference(updateTime)
 
                 return {
                     id: comic.id,
@@ -324,7 +324,7 @@ class Komiic extends ComicSource {
         // 加载漫画信息
         loadInfo: async (id) => {
             let json1 = await this.queryJson({ "operationName": "recommendComicById", "variables": { "comicId": id }, "query": "query recommendComicById($comicId: ID!) {\n  recommendComicById(comicId: $comicId)\n}" })
-            let recommend = json1.data.recommendComicById
+            let recommend = (json1.data.recommendComicById || []).slice()
             recommend.push(id)
 
             let getFavoriteStatus = async () => {
@@ -362,7 +362,8 @@ class Komiic extends ComicSource {
 
             let results = await Promise.all([
                 this.queryComics({ "operationName": "comicByIds", "variables": { "comicIds": recommend }, "query": "query comicByIds($comicIds: [ID]!) {\n  comicByIds(comicIds: $comicIds) {\n    id\n    title\n    status\n    year\n    imageUrl\n    authors {\n      id\n      name\n      __typename\n    }\n    categories {\n      id\n      name\n      __typename\n    }\n    dateUpdated\n    monthViews\n    views\n    favoriteCount\n    lastBookUpdate\n    lastChapterUpdate\n    __typename\n  }\n}" }),
-                getChapter.call()
+                getChapter.call(),
+                getFavoriteStatus()
             ])
 
             let info = results[0].comics.pop()
@@ -380,7 +381,8 @@ class Komiic extends ComicSource {
                 },
                 // map<string, string>?, key为章节id, value为章节名称
                 chapters: results[1],
-                recommend: results[0].comics
+                recommend: results[0].comics,
+                isFavorite: results[2]
             }
         },
         // 获取章节图片
@@ -393,9 +395,22 @@ class Komiic extends ComicSource {
             }
         },
         // 可选, 调整图片加载的行为
-        onImageLoad: (url, comicId, epId) => {
+        onImageLoad: async (url, comicId, epId) => {
+            let path = url.split("?")[0]
+            let kid = path.substring(path.lastIndexOf("/") + 1)
+            let ticketData = await this.queryJson({
+                "operationName": "getImageTicket",
+                "variables": { "kid": kid },
+                "query": "query getImageTicket($kid: String!) { getImageTicket(kid: $kid) { url ticket kid width height expiresAt } }"
+            })
+            let ticket = ticketData.data && ticketData.data.getImageTicket
+            if (!ticket || !ticket.url || !ticket.ticket) {
+                throw "Komiic image ticket is unavailable"
+            }
             return {
+                url: ticket.url,
                 headers: {
+                    'X-Image-Ticket': ticket.ticket,
                     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
                     'referer': `https://komiic.com/comic/${comicId}/chapter/${epId}/images/all`
                 }

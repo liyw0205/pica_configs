@@ -5,12 +5,12 @@ class Baozi extends ComicSource {
     // 唯一标识符
     key = "baozi"
 
-    version = "1.0.0"
+    version = "1.0.1"
 
     minAppVersion = "4.0.0"
 
     // 更新链接
-    url = "https://raw.githubusercontent.com/wgh136/pica_configs/master/baozi.js"
+    url = "https://raw.githubusercontent.com/liyw0205/pica_configs/master/baozi.js"
 
     /// APP启动时或者添加/更新漫画源时执行此函数
     init() {}
@@ -21,7 +21,7 @@ class Baozi extends ComicSource {
         /// 登录
         /// 返回任意值表示登录成功
         login: async (account, pwd) => {
-            let res = await Network.post("https://cn.baozimh.com/api/bui/signin", {
+            let res = await Network.post(`${this.baseUrl}/api/bui/signin`, {
                 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryFUNUxpOwyUaDop8s'
             }, "------WebKitFormBoundaryFUNUxpOwyUaDop8s\r\nContent-Disposition: form-data; name=\"username\"\r\n\r\n" + account + "\r\n------WebKitFormBoundaryFUNUxpOwyUaDop8s\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\n" + pwd + "\r\n------WebKitFormBoundaryFUNUxpOwyUaDop8s--\r\n")
             if(res.status !== 200) {
@@ -30,32 +30,34 @@ class Baozi extends ComicSource {
             let json = JSON.parse(res.body)
             let token = json.data
             Network.setCookies(this.baseUrl, [
-                Cookie('TSID', token, '.baozimh.com'),
+                Cookie('TSID', token, '.twmanga.com'),
             ])
             return 'ok'
         },
 
         // 退出登录时将会调用此函数
         logout: () => {
-            Network.deleteCookies('.baozimh.com')
+            Network.deleteCookies(this.baseUrl)
         },
 
-        registerWebsite: `https://cn.baozimh.com/user/signup`
+        registerWebsite: "https://www.twmanga.com/user/signup"
     }
 
     lang = 'cn'
 
     get baseUrl(){
-        return `https://${this.lang}.baozimh.com`
+        return "https://www.twmanga.com"
     }
 
     parseComic(e) {
         let url = e.querySelector("a").attributes['href']
         let id = url.split("/").pop()
         let title = e.querySelector("h3").text.trim()
-        let cover = e.querySelector("a > amp-img").attributes["src"]
+        let image = e.querySelector("a > amp-img")
+        let cover = image.attributes["src"] || image.attributes["data-src"]
         let tags = e.querySelectorAll("div.tabs > span").map(e => e.text.trim())
-        let description = e.querySelector("small").text.trim()
+        let descriptionNode = e.querySelector("small")
+        let description = descriptionNode ? descriptionNode.text.trim() : ""
         return {
             id: id,
             title: title,
@@ -139,7 +141,7 @@ class Baozi extends ComicSource {
     /// 分类漫画页面, 即点击分类标签后进入的页面
     categoryComics = {
         load: async (category, param, options, page) => {
-            let res = await Network.get(`${this.baseUrl}/api/bzmhq/amp_comic_list?type=${param}&region=${options[0]}&state=${options[1]}&filter=%2a&page=${page}&limit=36&language=${this.lang}&__amp_source_origin=https%3A%2F%2F${this.lang}.baozimh.com`)
+            let res = await Network.get(`${this.baseUrl}/api/bzmhq/amp_comic_list?type=${param}&region=${options[0]}&state=${options[1]}&filter=%2A&page=${page}&limit=20&language=${this.lang}&__amp_source_origin=${encodeURIComponent(this.baseUrl)}`)
             if (res.status !== 200) {
                 throw "Invalid status code: " + res.status
             }
@@ -177,7 +179,7 @@ class Baozi extends ComicSource {
     /// 搜索
     search = {
         load: async (keyword, options, page) => {
-            let res = await Network.get(`${this.baseUrl}/search?q=${keyword}`)
+            let res = await Network.get(`${this.baseUrl}/search?q=${encodeURIComponent(keyword)}`)
             if (res.status !== 200) {
                 throw "Invalid status code: " + res.status
             }
@@ -302,13 +304,12 @@ class Baozi extends ComicSource {
         },
         // 获取章节图片
         loadEp: async (comicId, epId) => {
-            let res = await Network.get(`https://${this.lang}.czmanga.com/comic/chapter/${comicId}/0_${epId}.html`)
+            let res = await Network.get(`${this.baseUrl}/comic/chapter/${comicId}/0_${epId}.html`)
             if (res.status !== 200) {
                 throw "Invalid status code: " + res.status
             }
             let document = new HtmlDocument(res.body)
-            let images = document.querySelectorAll("ul.comic-contain > div > amp-img").map(e => e.attributes['src'])
-            console.log(images)
+            let images = document.querySelectorAll("amp-img.comic-contain__item").map(e => e.attributes['src'] || e.attributes['data-src'])
             return {
                 images: images
             }

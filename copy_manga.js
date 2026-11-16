@@ -4,11 +4,11 @@ class CopyManga extends ComicSource {
 
     key = "copy_manga"
 
-    version = "1.1.3"
+    version = "1.1.4"
 
     minAppVersion = "3.1.0"
 
-    url = "https://raw.githubusercontent.com/wgh136/pica_configs/master/copy_manga.js"
+    url = "https://raw.githubusercontent.com/liyw0205/pica_configs/master/copy_manga.js"
 
     headers = {}
 
@@ -47,7 +47,7 @@ class CopyManga extends ComicSource {
                     ...this.headers,
                     "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
                 },
-                `username=${account}&password=${base64}\n&salt=${salt}&platform=3&authorization=Token+&version=1.4.4&source=copyApp&region=1&webp=1`
+                `username=${encodeURIComponent(account)}&password=${encodeURIComponent(base64)}&salt=${salt}&platform=3&authorization=Token+&version=${CopyManga.copyVersion}&source=copyApp&region=1&webp=1`
             );
             if (res.status === 200) {
                 let data = JSON.parse(res.body)
@@ -366,7 +366,7 @@ class CopyManga extends ComicSource {
                     let offset = 500;
                     while (offset < maxChapter) {
                         res = await Network.get(
-                            `https://api.copymanga.tv/api/v3/comic/chongjingchengweimofashaonv/group/default/chapters?limit=500&offset=${offset}&platform=3`,
+                            `https://api.copymanga.tv/api/v3/comic/${id}/group/default/chapters?limit=500&offset=${offset}&platform=3`,
                             this.headers
                         );
                         if (res.status !== 200) {
@@ -402,7 +402,7 @@ class CopyManga extends ComicSource {
             ])
 
             if (results[0].status !== 200) {
-                throw `Invalid status code: ${res.status}`;
+                throw `Invalid status code: ${results[0].status}`;
             }
 
             let comicData = JSON.parse(results[0].body).results.comic;
