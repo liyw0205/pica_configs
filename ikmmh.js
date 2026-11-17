@@ -6,7 +6,7 @@ class NewComicSource extends ComicSource {  // 首行必须为class...
     // 唯一标识符
     key = "ikmmh"
 
-    version = "1.1.2"
+    version = "1.1.3"
 
     minAppVersion = "3.1.0"
 
@@ -351,16 +351,15 @@ class NewComicSource extends ComicSource {  // 首行必须为class...
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
                 }, `articleid=${encodeURIComponent(id)}`)
                 if (res.status !== 200) {
-                    error("Invalid status code: " + res.status)
-                    return;
+                    throw "Invalid status code: " + res.status
                 }
                 let json = JSON.parse(res.body)
                 if (json["code"] === "0" || json["code"] === 0) {
-                    success("ok")
+                    return 'ok'
                 } else if (json["code"] === 1) {
-                    error("Login expired")
+                    throw "Login expired"
                 } else {
-                    error(json["msg"].toString())
+                    throw json["msg"].toString()
                 }
             }
         },
